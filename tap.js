@@ -51,7 +51,7 @@ onmessage = function (e) {
   decode(e.data.file).then(analyze).then(function (bpm) {
       postMessage({ message: bpm + " BPM" });
       postMessage({ message: (new Date() - t) + " ms" });
-  });
+  }).catch(handleError);
 };
 
 function handleError(e) {
