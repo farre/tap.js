@@ -1,6 +1,6 @@
 // mp3.js requires window, but we're a workor
 var window = this;
-importScripts("aurora.js", "mp3.js", "dsp.js", "beatdetektor.js");
+importScripts("lib/aurora.js", "lib/mp3.js", "lib/dsp.js", "lib/beatdetektor.js");
 
 // remove the console, beatdetektor is spamming it
 console = undefined;
