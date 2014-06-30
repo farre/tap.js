@@ -1,0 +1,32 @@
+File URL: <input type="text" id="fileUrl"></input><input type="button" onclick="submit()" value="Submit!">
+<div id="console">Console:</div>
+<div>Data: <span id="data"></data></div>
+<script type="text/javascript">
+var log = function () {
+    var output = document.getElementById('console');
+    return function log(str) {
+        output.innerHTML += "<br/>" + str;
+    }
+}();
+
+var data = function () {
+    var output = document.getElementById('data');
+    return function log(str) {
+        output.innerHTML = str;
+    }
+}();
+
+
+var w = new Worker("../tap.js");
+w.onmessage = function (e) {
+  if ('message' in e.data) {
+    log("" + e.data.message);
+  } else if ('data' in e.data) {
+    data("" + e.data.data);
+  }
+}
+
+function submit() {
+  w.postMessage({ file: document.getElementById('fileUrl').value });
+}
+</script>
