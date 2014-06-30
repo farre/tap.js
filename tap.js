@@ -5,47 +5,60 @@ importScripts("aurora.js", "mp3.js", "dsp.js", "beatdetektor.js");
 // remove the console, beatdetektor is spamming it
 console = undefined;
 
-AV.Asset.prototype.decodeDurationToBuffer = function(duration, callback) {
-    var buffer, duration, offset, finish, dataHandler, format;
-    buffer = null;
-    offset = 0;
-    var finish = function() {
-	this.stop();
-	this.off('buffer', dataHandler);
-	return callback(buffer.subarray(0, offset), format);
-    }
+AV.Asset.prototype.decodeDurationToBuffer = function(time) {
+    return new Promise(function(resolve, reject) {
+	var buffer, duration, offset, finish, dataHandler, format;
+	duration = time;
+	buffer = null;
+	offset = 0;
+	var finish = function() {
+	    this.stop();
+	    this.off('buffer', dataHandler);
+	    return resolve({ buffer: buffer.subarray(0, offset), format: format });
+	}.bind(this);
 
-    this.once('format', function(f) {
-	format = f;
-	buffer = new Float32Array(format.channelsPerFrame * format.sampleRate * duration);
-    });
+	this.on('error', function (e) {
+	    this.stop();
+	    this.off('buffer', dataHandler);
+	    reject(e);
+	});
 
-    this.on('data', dataHandler = function(chunk) {
-	var size;
-	if (offset < buffer.length) {
-	    size = Math.min(buffer.length - offset, chunk.length);
-	    buffer.set(chunk.subarray(0, size), offset);
-	    offset += size;
-	} else {
-	    finish.call(this);
-	}
-    });
+	this.once('format', function(f) {
+	    var size;
+	    format = f;
+	    size = format.channelsPerFrame * format.sampleRate * duration;
+	    buffer = new Float32Array(size);
+	});
 
-    this.once('end', finish);
+	this.on('data', dataHandler = function(chunk) {
+	    var size;
+	    if (offset < buffer.length) {
+		size = Math.min(buffer.length - offset, chunk.length);
+		buffer.set(chunk.subarray(0, size), offset);
+		offset += size;
+	    } else {
+		finish();
+	    }
+	});
 
-    return this.start();
+	this.once('end', finish);
+	this.start();
+    }.bind(this));
 };
 
 onmessage = function (e) {
-  decode(e.data.file);
+  var t = new Date();
+  decode(e.data.file).then(analyze).then(function (bpm) {
+      postMessage({ message: bpm + " BPM" });
+      postMessage({ message: (new Date() - t) + " ms" });
+  });
 };
 
 function handleError(e) {
     postMessage({ message: "error occurred " + e });
 }
 
-function handleData(buffer, format) {
-    postMessage({ message: "start analyzing" });
+function analyze({buffer, format}) {
     var fft, rounds, frameSize, i, bd_low, bd_med, bd_high, data, timer, roundTime;
     frameSize = 1024;
     timer = 0;
@@ -69,17 +82,11 @@ function handleData(buffer, format) {
 	timer += roundTime;
     }
 
-    postMessage({ message: (bd_low.win_bpm_int/10.0)+" BPM / "+(bd_low.win_bpm_int_lo)+" BPM, quality = " + bd_low.quality_total });
-    postMessage({ message: (bd_med.win_bpm_int/10.0)+" BPM / "+(bd_med.win_bpm_int_lo)+" BPM, quality = " + bd_med.quality_total });
-    postMessage({ message: (bd_high.win_bpm_int/10.0)+" BPM / "+(bd_high.win_bpm_int_lo)+" BPM, quality = " + bd_high.quality_total });
-    postMessage({ message: "done analyzing" });
+    return Promise.resolve([bd_low, bd_med, bd_high].sort(function(a, b) {
+	return Math.sign(a.quality_total - b.quality_total);
+    })[2].win_bpm_int_lo);
 }
 
 function decode(url) {
-    var asset;
-
-    postMessage({ message: "start decoding " + url });
-    asset = AV.Asset.fromURL(url);
-    asset.decodeDurationToBuffer(30, handleData);
-    asset.start();
+    return AV.Asset.fromURL(url).decodeDurationToBuffer(30);
 }
