@@ -30,7 +30,17 @@ http.createServer(function(request, response) {
         return;
       }
 
-      console.log("Serving " + filename + " as binary of length " + file.length);
+      var ext = path.extname(filename||'').split('.');
+      ext = ext.pop();
+      if (ext == 'html') {
+	  console.log("Serving " + filename + " as text/html of length " + file.length)
+        response.setHeader("Content-Type", "text/html");
+      } else if (ext == 'js') {
+	  console.log("Serving " + filename + " as text/javascript of length " + file.length)
+        response.setHeader("Content-Type", "text/javascript");
+      } else {
+	  console.log("Serving " + filename + " as binary of length " + file.length);     }
+
       response.writeHead(200, {"Content-Length": file.length});
       response.write(file, "binary");
       response.end();
